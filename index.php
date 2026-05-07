@@ -77,6 +77,48 @@ elseif ($method == 'POST') {
     }
 }
 
+    
+elseif ($method == 'PUT') {
+
+    $data = json_decode(file_get_contents("php://input"), true);
+
+    $id    = $data['id'] ?? '';
+    $nama  = $data['nama'] ?? '';
+    $sandi = $data['sandi'] ?? '';
+
+    if ($id == '' || $nama == '' || $sandi == '') {
+
+        echo json_encode([
+            "status" => false,
+            "message" => "ID, nama, dan sandi wajib diisi"
+        ]);
+
+        exit;
+    }
+
+    $query = mysqli_query(
+        $koneksi,
+        "UPDATE users 
+         SET nama='$nama', sandi='$sandi'
+         WHERE id='$id'"
+    );
+
+    if ($query) {
+
+        echo json_encode([
+            "status" => true,
+            "message" => "Data berhasil diupdate"
+        ]);
+
+    } else {
+
+        echo json_encode([
+            "status" => false,
+            "message" => "Gagal update data",
+            "error" => mysqli_error($koneksi)
+        ]);
+    }
+}
 
 /*
 =================================
