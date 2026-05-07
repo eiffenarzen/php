@@ -1,174 +1,89 @@
 <?php
-
+header('Content-Type: application/json');
 include 'koneksi.php';
-
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-/*
-=================================
-GET = AMBIL DATA
-POST = TAMBAH DATA
-DELETE = HAPUS DATA
-=================================
-*/
+switch ($method) {
+    case 'GET':
+        // READ: Menampilkan semua data
+        $query = mysqli_query($koneksi, "SELECT * FROM users");
+        $result = mysqli_fetch_all($query, MYSQLI_ASSOC);
+        echo json_encode([
+            "status" => "success",
+            "data" => $result
+        ]);
+        break;
 
-if ($method == 'GET') {
+    case 'POST':
+        // CREATE: Menambah data baru
+        $input = json_decode(file_get_contents('php://input'), true);
+        $nama = $input['nama'] ?? $_POST['nama'];
+        $sandi = $input['sandi'] ?? $_POST['sandi'];
 
-    $data = mysqli_query($koneksi, "SELECT * FROM users");
+        if ($nama && $sandi) {
+            $sql = "INSERT INTO users (nama, sandi) VALUES ('$nama', '$sandi')";
+            if (mysqli_query($koneksi, $sql)) {
+                echo json_encode(["status" => "success", "message" => "Data berhasil ditambah"]);
+            } else {
+                echo json_encode(["status" => "error", "message" => mysqli_error($koneksi)]);
+            }
+        } else {
+            echo json_encode(["status" => "error", "message" => "Input nama dan sandi diperlukan"]);
+        }
+        break;
 
-    $hasil = [];
+    case 'PUT':
+        // UPDATE: Mengubah data yang sudah ada berdasarkan ID
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        // Mengambil data dari body JSON
+        $id = $input['id'] ?? null;
+        $nama = $input['nama'] ?? null;
+        $sandi = $input['sandi'] ?? null;
 
-    while ($d = mysqli_fetch_assoc($data)) {
-        $hasil[] = $d;
-    }
+        if ($id && $nama && $sandi) {
+            // Amankan input data
+            $id = (int)$id;
+            $nama = mysqli_real_escape_string($koneksi, $nama);
+            $sandi = mysqli_real_escape_string($koneksi, $sandi);
 
-    echo json_encode([
-        "status" => true,
-        "message" => "Data berhasil diambil",
-        "data" => $hasil
-    ]);
+            $sql = "UPDATE users SET nama='$nama', sandi='$sandi' WHERE id=$id";
+            
+            if (mysqli_query($koneksi, $sql)) {
+                // Cek apakah ada baris yang benar-benar berubah di database
+                if (mysqli_affected_rows($koneksi) > 0) {
+                    echo json_encode(["status" => "success", "message" => "Data ID $id berhasil diupdate"]);
+                } else {
+                    echo json_encode(["status" => "error", "message" => "Data tidak diupdate (ID tidak ditemukan atau data sama dengan yang lama)"]);
+                }
+            } else {
+                echo json_encode(["status" => "error", "message" => mysqli_error($koneksi)]);
+            }
+        } else {
+            echo json_encode(["status" => "error", "message" => "ID, nama, dan sandi harus diisi lengkap di dalam Body JSON"]);
+        }
+        break;
+
+    case 'DELETE':
+        // DELETE: Menghapus data berdasarkan ID di URL (?id=...)
+        if (isset($_GET['id'])) {
+            $id = (int)$_GET['id'];
+            $sql = "DELETE FROM users WHERE id=$id";
+            if (mysqli_query($koneksi, $sql)) {
+                echo json_encode(["status" => "success", "message" => "Data ID $id berhasil dihapus"]);
+            } else {
+                echo json_encode(["status" => "error", "message" => mysqli_error($koneksi)]);
+            }
+        } else {
+            echo json_encode(["status" => "error", "message" => "ID tidak ditemukan"]);
+        }
+        break;
+
+    default:
+        echo json_encode(["status" => "error", "message" => "Metode tidak diizinkan"]);
+        break;
 }
 
-
-/*
-=================================
-POST TAMBAH DATA
-=================================
-*/
-
-elseif ($method == 'POST') {
-
-    $nama  = $_POST['nama'] ?? '';
-    $sandi = $_POST['sandi'] ?? '';
-
-    if ($nama == '' || $sandi == '') {
-
-        echo json_encode([
-            "status" => false,
-            "message" => "Nama dan sandi wajib diisi"
-        ]);
-
-        exit;
-    }
-
-    $query = mysqli_query(
-        $koneksi,
-        "INSERT INTO users (nama, sandi)
-         VALUES ('$nama', '$sandi')"
-    );
-
-    if ($query) {
-
-        echo json_encode([
-            "status" => true,
-            "message" => "Data berhasil ditambahkan"
-        ]);
-
-    } else {
-
-        echo json_encode([
-            "status" => false,
-            "message" => "Gagal tambah data",
-            "error" => mysqli_error($koneksi)
-        ]);
-    }
-}
-
-    
-elseif ($method == 'PUT') {
-
-    $data = json_decode(file_get_contents("php://input"), true);
-
-    $id    = $data['id'] ?? '';
-    $nama  = $data['nama'] ?? '';
-    $sandi = $data['sandi'] ?? '';
-
-    if ($id == '' || $nama == '' || $sandi == '') {
-
-        echo json_encode([
-            "status" => false,
-            "message" => "ID, nama, dan sandi wajib diisi"
-        ]);
-
-        exit;
-    }
-
-    $query = mysqli_query(
-        $koneksi,
-        "UPDATE users 
-         SET nama='$nama', sandi='$sandi'
-         WHERE id='$id'"
-    );
-
-    if ($query) {
-
-        echo json_encode([
-            "status" => true,
-            "message" => "Data berhasil diupdate"
-        ]);
-
-    } else {
-
-        echo json_encode([
-            "status" => false,
-            "message" => "Gagal update data",
-            "error" => mysqli_error($koneksi)
-        ]);
-    }
-}
-
-/*
-=================================
-DELETE DATA
-=================================
-*/
-
-elseif ($method == 'DELETE') {
-
-    parse_str(file_get_contents("php://input"), $_DELETE);
-
-    $id = $_DELETE['id'] ?? '';
-
-    if ($id == '') {
-
-        echo json_encode([
-            "status" => false,
-            "message" => "ID wajib diisi"
-        ]);
-
-        exit;
-    }
-
-    $query = mysqli_query(
-        $koneksi,
-        "DELETE FROM users WHERE id='$id'"
-    );
-
-    if ($query) {
-
-        echo json_encode([
-            "status" => true,
-            "message" => "Data berhasil dihapus"
-        ]);
-
-    } else {
-
-        echo json_encode([
-            "status" => false,
-            "message" => "Gagal hapus data",
-            "error" => mysqli_error($koneksi)
-        ]);
-    }
-}
-
-else {
-
-    echo json_encode([
-        "status" => false,
-        "message" => "Method tidak didukung"
-    ]);
-}
+mysqli_close($koneksi);
 ?>
